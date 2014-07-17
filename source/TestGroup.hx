@@ -8,7 +8,28 @@ import flixel.util.FlxTimer;
 
 /**
  * ...
- * @author Victor Grunn
+ * @author Victor Grunn / Joseph Antolick
+ * 
+ * The unimaginatively named TestGroup comprises the heart of this project.
+ * This was posed as a programming challenge on Reddit, where users were invited
+ * to create an environmental simulation/cellular automata following a 
+ * variety of simple rules.
+ * 
+ * The grid should contain 50% trees, 10% Lumberjacks, and 2% bears.
+ * Every 'turn' should comprise a month.
+ * Each 'month', bears should move 5 random spaces. Lumberjacks, 3.
+ * If a lumberjack encountered a tree, it should be cut down and 1 wood should be gained.
+ * If a lumberjack encountered an elder tree, it should be cut down and 2 wood should be gained.
+ * If a lumberjack encountered a bear, the lumberjack should be removed.
+ * 
+ * At the end of each year, if wood gathered exceeded total lumberjacks, additional lumberjacks should be added.
+ * If a lumberjack was eaten, remove 1 bear from the forest.
+ * 
+ * Initially the game was supposed to end at either the elimination of all trees or a certain year. I have removed the
+ * year requirement for the purposes of this demonstration.
+ * 
+ * A caveat: This game makes use of HaxeFlixel 3.5. HaxeFlixel has since been updated to 4.0, breaking some compatibility.
+ * But the original swf and code and 3.5 still represents the project as it was created.
  */
 class TestGroup extends FlxGroup
 {
@@ -43,6 +64,11 @@ class TestGroup extends FlxGroup
 	
 	private var gameTimer:FlxTimer;
 
+	/*
+	 * The constructor for the unimaginatively named TestGroup. The grid is initialized, as is the statustext display.
+	 * 
+	 */
+	
 	public function new() 
 	{
 		super();
@@ -52,26 +78,32 @@ class TestGroup extends FlxGroup
 		mapArray = new Array < Array < Occupant_Land >> ();
 		TestGroup.occupantsArray = new Array <Occupant_Creature > ();		
 		
-		mapAccessArray = mapArray;
+		mapAccessArray = mapArray;		
 				
 		statusText = new FlxText(0, 0, 350);
 		statusText.setFormat(null, 12, FlxColor.WHITE, "left");
 		statusText.text = "Test.";
-		add(statusText);
+		add(statusText);		
 		
 		mapGroup = new FlxTypedGroup<Occupant_Land>();
-		add(mapGroup);
+		add(mapGroup);		
 		
 		occupantsGroup = new FlxTypedGroup<Occupant_Creature>();
-		add(occupantsGroup);
+		add(occupantsGroup);		
 		
-		initMap();					
+		initMap();							
 		
-		gameTimer = new FlxTimer(.2, onTimerComplete, 0);			
+		gameTimer = new FlxTimer(1, onTimerComplete, 0);			
 		
-		FlxG.watch.add(TestGroup.occupantsArray, "length", "Occupants: ");
+		//A built-in debugger watch to keep track of how many total occupants (Bears + Lumberjacks) are present at any given time.
+		FlxG.watch.add(TestGroup.occupantsArray, "length", "Occupants: ");		
 	}		
 	
+	
+	/*
+	 * HaxeFlixel's 'update' is one of the hearts and souls of the library. It updates as needed, often tuned to the FPS settings,
+	 * cycling through every Flixel display object, handling timers, and so on.
+	 */
 	override public function update():Void
 	{
 		super.update();
@@ -84,7 +116,9 @@ class TestGroup extends FlxGroup
 			}
 		}
 	}
-	
+	/*
+	 * A function that updates all of the text as needed in one go. 
+	 */
 	public function updateText():Void
 	{
 		statusText.text = 
@@ -101,6 +135,19 @@ class TestGroup extends FlxGroup
 		"\nMonth: " + TestGroup.month;
 	}
 	
+	/*
+	 * The lifeblood of the program. On every tick of the FlxTimer, the following takes places:
+	 * 
+	 * Every tree is aged one month, which in turn 'upgrades' the tree if 12 months has passed.
+	 * The count of trees is also cataloged for text display as well as visual.
+	 * 
+	 * Every 'occupant' (bear, lumberjack) is given the roam command. Each will roam 3-5 random
+	 * spaces depending on whether they are a lumberjack (3) or bear (5), and assuming there are no
+	 * encounters in the interim.
+	 * 
+	 * Other statistics are given either current or lifetime updates as needed. If the trees have
+	 * all been eliminated or if year 400 has been reached, the simulation ends and can be restarted.
+	 */	
 	private function onTimerComplete(t:FlxTimer):Void
 	{	
 		TestGroup.totalElderTreesLeft = 0;
@@ -250,23 +297,27 @@ class TestGroup extends FlxGroup
 		}
 	}
 	
+	//The map initializer. Generates the X by X grid which will contain all of the 'land', and randomly disperses trees throughout the map.
 	public function initMap():Void
-	{
+	{		
 		for (i in 0...mapSize)
 		{
 			mapArray[i] = new Array<Occupant_Land>();
 			
 			for (o in 0...mapSize)
 			{
-				mapArray[i][o] = mapGroup.recycle(Occupant_Land, [OCCTYPE_LAND.EMPTY, mapArray]);
+				//mapArray[i][o] = mapGroup.recycle(Occupant_Land, [OCCTYPE_LAND.EMPTY, mapArray]);
+				mapArray[i][o]  = mapGroup.recycle(Occupant_Land);
+				mapArray[i][o].setType(OCCTYPE_LAND.EMPTY);
+				mapArray[i][o] = mapGroup.recycle(Occupant_Land);
 				mapArray[i][o].x = (FlxG.width - (mapSize * pieceSize)) + i * pieceSize;
 				mapArray[i][o].y = o * pieceSize;
 				mapArray[i][o].xSlot = i;
 				mapArray[i][o].ySlot = o;
-			}
+			}			
 		}
 		
-		var treeCount:Int = Std.int((mapSize * mapSize) * .5);
+		var treeCount:Int = Std.int((mapSize * mapSize) * .5);		
 		
 		while (treeCount > 0)
 		{
@@ -277,13 +328,15 @@ class TestGroup extends FlxGroup
 			{
 				mapArray[checkX][checkY].setType(OCCTYPE_LAND.TREE_TREE);
 				treeCount -= 1;
-			}
+			}						
 		}				
 		
 		trace("Map initialized.");
 		initOccupants();
 	}
 	
+	//A function for generating and adding a Lumberjack to the occupantsGroup.
+	//This group displays on a layer over the land, so neither lumberjacks nor bears 'hide behind' trees.
 	private function generateJack():Void
 	{
 		var checkX:Int = Math.floor(Math.random() * mapSize);
@@ -291,7 +344,8 @@ class TestGroup extends FlxGroup
 		
 		if (mapArray[checkX][checkY].occupying.length == 0)
 		{
-			var jack:Occupant_Creature = occupantsGroup.recycle(Occupant_Creature, [OCCTYPE_CREATURE.LUMBERJACK]);	
+			//var jack:Occupant_Creature = occupantsGroup.recycle(Occupant_Creature, [OCCTYPE_CREATURE.LUMBERJACK]);	
+			var jack:Occupant_Creature = occupantsGroup.recycle(Occupant_Creature);
 			jack.setType(OCCTYPE_CREATURE.LUMBERJACK);
 			jack.xSlot = checkX;
 			jack.ySlot = checkY;
@@ -300,6 +354,7 @@ class TestGroup extends FlxGroup
 		}
 	}
 	
+	//Generates bears who will randomly wander and, if confronted with a lumberjacks, enjoy a meal.
 	private function generateBear():Void
 	{
 		var checkX:Int = Math.floor(Math.random() * mapSize);
@@ -307,7 +362,8 @@ class TestGroup extends FlxGroup
 		
 		if (mapArray[checkX][checkY].occupying.length == 0)
 		{
-			var bear:Occupant_Creature = occupantsGroup.recycle(Occupant_Creature, [OCCTYPE_CREATURE.BEAR]);
+			//var bear:Occupant_Creature = occupantsGroup.recycle(Occupant_Creature, [OCCTYPE_CREATURE.BEAR]);
+			var bear:Occupant_Creature = occupantsGroup.recycle(Occupant_Creature);
 			bear.setType(OCCTYPE_CREATURE.BEAR);
 			bear.xSlot = checkX;
 			bear.ySlot = checkY;
@@ -316,6 +372,9 @@ class TestGroup extends FlxGroup
 		}
 	}
 	
+	/*
+	 * Initializes the occupants in proportion to the mapsize. 10% Jacks and 2% bears compared to the initial area of the grid.
+	 */
 	private function initOccupants():Void
 	{				
 		var jackCount:Int = Std.int((mapSize * mapSize) * .10);			
@@ -338,9 +397,14 @@ class TestGroup extends FlxGroup
 	
 }
 
+/*
+ * The class which deals with 'land occupants'. In this case: trees, in the form of sapling, normal and elder, along with an 'empty'.
+ * Empty is colored green to represent grass. Each Occupant_Land also contains an 'occupying' array/vector of occupant creatures, which
+ * allows multiple creatures to occupy a single land space.
+ * 
+ */
 class Occupant_Land extends FlxSprite
-{
-	private var mapArray:Array < Array < Occupant_Land >> ;
+{	
 	public var ID_TYPE:OCCTYPE_LAND;
 	public var occupying:Array<Occupant_Creature>;
 	private var age:Int = 0;
@@ -348,14 +412,17 @@ class Occupant_Land extends FlxSprite
 	public var xSlot:Int = 0;
 	public var ySlot:Int = 0;
 	
-	public function new(_type:OCCTYPE_LAND, _mapArray:Array<Array<Occupant_Land>>)
+	//public function new(_type:OCCTYPE_LAND, _mapArray:Array<Array<Occupant_Land>>)
+	public function new()
 	{
 		super();
 		
-		setType(_type);
+		//setType(_type);
 		occupying = new Array<Occupant_Creature>();
 	}			
 	
+	//Called on each Timer update, aging trees one month. It also ages empty spaces and elder trees, despite their inability to change into anything.
+	//Everyone deserves to celebrate a birthday, after all.
 	public function ageOneMonth():Void
 	{		
 		if (ID_TYPE != OCCTYPE_LAND.EMPTY)
@@ -383,6 +450,8 @@ class Occupant_Land extends FlxSprite
 		}						
 	}
 	
+	//Normal and elder trees have a 10% and 20% chance respectively to spawn a sapling in any empty land space adjacent to them (8 way grid.)
+	//Eligible spaces are tested for, ruling out invalid spaces (edges, corners, and spaces which already have trees).
 	private function spawnSapling(_type:OCCTYPE_LAND):Void
 	{
 		var threshold:Float = .8;
@@ -467,6 +536,7 @@ class Occupant_Land extends FlxSprite
 		}				
 	}
 	
+	//Helper function for spawnSapling, making sure tested grid spaces exist and are empty.
 	private function checkSapling(_x:Int, _y:Int):Bool		
 	{						
 		if (TestGroup.mapAccessArray[_x][_y].ID_TYPE != null && TestGroup.mapAccessArray[_x][_y].ID_TYPE == OCCTYPE_LAND.EMPTY)
@@ -477,6 +547,7 @@ class Occupant_Land extends FlxSprite
 		return false;
 	}	
 	
+	//Places the wandering occupant in the Occupant_Land's grid, and updates the creature's current location.
 	public function setOccupant(_creature:Occupant_Creature):Void
 	{
 		occupying.push(_creature);
@@ -493,11 +564,17 @@ class Occupant_Land extends FlxSprite
 		resolveOccupants(_creature);
 	}
 	
+	//Helper for setOccupant.
 	public function removeOccupant(_creature:Occupant_Creature):Void
 	{
 		occupying.remove(_creature);
 	}
 	
+	/*
+	 * Determines the results of occupants. If this Occupant_Land has a tree/elder tree and a lumberjack, the tree is harvested, the space
+	 * is set to empty, and wood is gained. If there is a bear and a lumberjack present, the lumberjack goes to the hospital (is removed)
+	 * and the relevant counters are updated.
+	 */
 	private function resolveOccupants(_creature:Occupant_Creature):Void
 	{	
 		switch(_creature.ID_TYPE)
@@ -549,6 +626,7 @@ class Occupant_Land extends FlxSprite
 		}
 	}
 	
+	//Changes the color and resets the age to represent a new tree spawn/age.
 	public function setType(_type:OCCTYPE_LAND):Void
 	{
 		ID_TYPE = _type;
@@ -574,6 +652,14 @@ class Occupant_Land extends FlxSprite
 	}
 }
 
+/*
+ * 
+ * The Occupant_Creature class only has two types - bear and lumberjack.
+ * Similar to how Occupant_Land's enum type determines how it 'updates' each turn,
+ * the bear or lumberjack will wander in a random pattern (3 spaces for the lumberjack,
+ * 5 for the bear), randomly (similar to how saplings spawn for the trees). The Occupant_Land
+ * actually resolves conflicts between either of the two.
+ */
 class Occupant_Creature extends FlxSprite
 {
 	public var ID_TYPE:OCCTYPE_CREATURE;
@@ -584,11 +670,12 @@ class Occupant_Creature extends FlxSprite
 	
 	private var movesLeft:Int = 0;
 	
-	public function new(_type:OCCTYPE_CREATURE)
+	//public function new(_type:OCCTYPE_CREATURE)
+	public function new()
 	{
 		super();
 
-		setType(_type);
+		//setType(_type);
 	}		
 	
 	public function setType(_type:OCCTYPE_CREATURE)
@@ -629,6 +716,7 @@ class Occupant_Creature extends FlxSprite
 		movesLeft = 0;
 	}
 	
+	//The movement, called on a while loop until the moves are exhausted.
 	private function makeMove():Void
 	{
 		var myX:Int = 0;
@@ -695,7 +783,7 @@ enum OCCTYPE_CREATURE
 	LUMBERJACK;
 }
 
-
+//A simple ArrayChecker object used to make calculations a bit easier to understand.
 class ArrayChecker
 {
 	public var x:Int;
